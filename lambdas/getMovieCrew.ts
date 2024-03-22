@@ -11,6 +11,8 @@ export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {
         console.log("Paramters:", parameters)
         const movieId = parameters?.movieId ? parseInt(parameters.movieId) : undefined;
         const crewRole = parameters?.crewRole;
+        const nameParam = event?.queryStringParameters?.name;
+        const name = nameParam ? parseInt(nameParam) : undefined; 
 
 
         if (!movieId || !crewRole){
@@ -23,16 +25,36 @@ export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {
             };
         }
 
-        const commandOutput = await ddbDocClient.send(
-            new QueryCommand({          
-                TableName: process.env.TABLE_NAME,
+        let commandInput: QueryCommandInput ={
+            TableName: process.env.TABLE_NAME, 
+        }
+
+        if (name){
+            commandInput = {
+                ...commandInput,
+                KeyConditionExpression: "movieId = :m AND crewRole = :cR",
+                FilterExpression: "name == :n",
+                ExpressionAttributeValues: {
+                    ":m": movieId,
+                    ":cR": crewRole,
+                    ":n": name
+                },
+            }
+        }else{
+            commandInput = {
+                ...commandInput,
                 KeyConditionExpression: "movieId = :m AND crewRole = :cR",
                 ExpressionAttributeValues: {
                     ":m": movieId,
                     ":cR": crewRole
                 },
-            })
+            }
+        }
+
+        const commandOutput = await ddbDocClient.send(      
+            new QueryCommand(commandInput)       
         );
+        
 
         if(!commandOutput.Items || commandOutput.Items.length === 0){       
             return {                                                       
@@ -40,7 +62,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {
                 headers: {
                     "content-type": "application/json",
                 },
-                body: JSON.stringify({ Message: "No crew role names found. Verify movie Id and crew role name and try again." }),
+                body: JSON.stringify({ Message: "No reviews found. Verify movie Id and crew role name and sub name and try again. Additionally, there may be no crew role name for this movie yet" }),
             };
         }
 
